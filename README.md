@@ -292,7 +292,25 @@ npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时�
 
 每次 push 与 PR 都会在 GitHub Actions 上跑同一套（见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)）。
 
-> **注意：开源版不含后端 API 路由。**排盘、命盘展示、合盘起盘都在浏览器里用本仓库的引擎完成，**不需要任何 API Key**。AI 解读（`/api/interpret`）和合盘 AI 分析（`/api/heming`）需要你自己实现接口；没实现之前，这两处会直接提示「开源版不含该接口」，配置 API Key 也不会变成可用（#30 就是这个原因）。
+> **注意：排盘、命盘展示、合盘起盘都在浏览器里用本仓库的引擎完成，不需要任何 API Key。**本 fork 已内置 `/api/interpret`（本地查表，见下）；合盘 AI 分析（`/api/heming`）仍需你自己实现，没实现之前那一处会直接提示「开源版不含该接口」。
+
+### 3.1 本地查表解读（无需 API Key）
+
+`/api/interpret` 在本 fork 里是一层**本地查表**：按出生日期 + 时辰 + 性别命中 v4.0 数据集里对应命盘的 13 维解读，
+再把客户端提问映射到该维的小节。全程不出本机，**不需要任何 API Key，也不会把出生信息发到任何外部服务**。
+
+| 文件 | 作用 |
+|------|------|
+| `lib/ziwei/dataset.ts` | 服务端查表：流式解压 `.zst` 并按 key 取行 |
+| `lib/ziwei/interpret.ts` | 提问 → 维度 → 小节的路由 |
+| `app/api/interpret/route.ts` | SSE 路由，帧格式 `data: {"delta":{"text":"…"}}\n\n` |
+
+要用它，先把 v4.0 数据集按[第二章](#二新13-维解读数据集-v402026-10-15)的方式下下来，解压到本机，
+再让 `lib/ziwei/dataset.ts` 找得到它：设环境变量 `ZIWEI_DATA_DIR`，或把数据目录放到
+`ziwei-data/`（会依次找 `ZIWEI_DATA_DIR` → 上两级同级目录 → 当前目录）。
+目录里要有 `months/year-YYYY/MM.zst`（按月切帧，查表只解压命中月份）或官方整年的
+`years/year-YYYY.jsonl.zst`（回退路径，单次解压 0.69 GB、约 1.4 s）。
+数据集本身不随本仓库分发，使用与再分发请遵守 [DATASET-LICENSE](./DATASET-LICENSE)（CC BY 4.0，需保留来源标注）。
 
 ---
 
@@ -381,7 +399,7 @@ npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时�
 | | 内容 |
 |---|---|
 | ✅ **开源** | 排盘引擎（`lib/ziwei/`）、古籍公版原文（`lib/classics/`）、SEO 知识图谱（`lib/seo/`）、Demo 界面、51.8 万样本数据集、13 维解读数据集 v4.0 |
-| ❌ **不开源** | 断语库（`lib/ziwei/db-analysis.ts` 是占位，线上是上万行的 13 主题断语）、AI 解读 prompt、后端 API（`/api/interpret` 等）、用户系统（登录 / 会员 / 支付）、服务端安全（签名、防刷、水印）、部署配置 |
+| ❌ **不开源** | 断语库（`lib/ziwei/db-analysis.ts` 是占位，线上是上万行的 13 主题断语）、AI 解读 prompt、后端 API（`/api/heming` 等）、用户系统（登录 / 会员 / 支付）、服务端安全（签名、防刷、水印）、部署配置 |
 
 如果你需要 AI 解读能力，可以参考 `lib/ziwei/patterns.ts` 和 `heming-knowledge.ts` 里的知识库，结合任意 LLM 自行构建 prompt。
 
