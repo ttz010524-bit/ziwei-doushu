@@ -29,9 +29,16 @@ const TOPICS = [
   { key: 'wealth',      label: '财运' },
   { key: 'health',      label: '健康' },
   { key: 'personality', label: '性格' },
+  { key: 'spirit',      label: '福德' },
+  { key: 'family',      label: '兄弟' },
+  { key: 'children',    label: '子女' },
+  { key: 'move',        label: '迁移' },
+  { key: 'friends',     label: '交友' },
+  { key: 'home',        label: '田宅' },
+  { key: 'parents',     label: '父母' },
 ] as const;
 
-const TOPIC_PROMPTS: Record<string, string> = {
+export const TOPIC_PROMPTS: Record<string, string> = {
   overview: `请生成命格总览，按以下结构输出：
 
 **【命格定性】**
@@ -127,6 +134,125 @@ const TOPIC_PROMPTS: Record<string, string> = {
 
 **【优势与人生课题】**
 天赋优势，以及需要面对的人生功课。`,
+
+  family: `请深度分析兄弟宫与同辈关系，按以下结构输出：
+
+**【兄弟格局】**
+一句话定性兄弟宫命格。
+
+**【兄弟宫分析】**
+兄弟宫主星、四化，以及倪师对这种配置的判断。
+
+**【兄弟三方联动】**
+相关宫位对兄弟与同辈关系的影响。
+
+**【当前大限兄弟运】**
+当下10年兄弟与同辈关系的走向与关键节点。
+
+**【实际建议】**
+具体可行的相处与合伙建议。`,
+
+  children: `请深度分析子女宫与子女缘，按以下结构输出：
+
+**【子女格局】**
+一句话定性子女宫命格。
+
+**【子女宫分析】**
+子女宫主星、四化，以及倪师对这种配置的判断。
+
+**【子女三方联动】**
+相关宫位对子女缘与晚辈关系的影响。
+
+**【当前大限子女运】**
+当下10年子女与晚辈关系的走向。
+
+**【实际建议】**
+具体可行的育儿与相处建议。`,
+
+  move: `请深度分析迁移宫与外出发展，按以下结构输出：
+
+**【迁移格局】**
+一句话定性迁移宫命格。
+
+**【迁移宫分析】**
+迁移宫主星、四化，以及倪师对这种配置的判断。
+
+**【迁移三方联动】**
+相关宫位对外出机遇与人际格局的影响。
+
+**【当前大限迁移运】**
+当下10年外出、异地与转型的走向。
+
+**【实际建议】**
+具体可行的外出发展与避坑建议。`,
+
+  friends: `请深度分析交友宫与人际关系，按以下结构输出：
+
+**【人际格局】**
+一句话定性交友宫命格。
+
+**【交友宫分析】**
+交友宫主星、四化，以及倪师对这种配置的判断。
+
+**【人际三方联动】**
+相关宫位对朋友、贵人、小人的影响。
+
+**【当前大限人际运】**
+当下10年人际圈与贵人运的走向。
+
+**【实际建议】**
+具体可行的识人与交往建议。`,
+
+  home: `请深度分析田宅宫与不动产，按以下结构输出：
+
+**【田宅格局】**
+一句话定性田宅宫命格。
+
+**【田宅宫分析】**
+田宅宫主星、四化，以及倪师对这种配置的判断。
+
+**【田宅三方联动】**
+相关宫位对不动产与家庭环境的影响。
+
+**【当前大限田宅运】**
+当下10年田宅与不动产的运势走向。
+
+**【实际建议】**
+具体可行的置业与家庭环境建议。`,
+
+  spirit: `请深度分析福德宫与精神世界，按以下结构输出：
+
+**【福德格局】**
+一句话定性福德宫命格。
+
+**【福德宫分析】**
+福德宫主星、四化，以及倪师对这种配置的判断。
+
+**【福德三方联动】**
+相关宫位对精神状态与内心福分的影响。
+
+**【当前大限福德运】**
+当下10年精神状态与兴趣走向。
+
+**【实际建议】**
+具体可行的心理调节与养性建议。`,
+
+  parents: `请深度分析父母宫与长辈关系，按以下结构输出：
+
+**【父母格局】**
+一句话定性父母宫命格。
+
+**【父母宫分析】**
+父母宫主星、四化，以及倪师对这种配置的判断。
+
+**【父母三方联动】**
+相关宫位对父母长辈、文书契约的影响。
+
+**【当前大限父母运】**
+当下10年父母长辈关系与文书事务的走向。
+
+**【实际建议】**
+具体可行的家庭沟通与长辈相处建议。`,
 };
 
 const PALACE_ROLES: Record<string, string> = {
@@ -252,7 +378,9 @@ ${selectedPalace.name}在命盘中的意义，以及这种星曜配置的整体�
       p.stars.some(s => s.name === selectedSiHua.starName)
     );
     const palaceName = palaceOfStar?.name ?? '未知宫位';
-    const viewLabel = selectedSiHua.view === 'daxian' ? '大限' : '流年';
+    const viewLabel = selectedSiHua.view === 'daxian'
+      ? '大限'
+      : selectedSiHua.view === 'liunian' ? '流年' : '本命';
 
     const prompt = `请分析【${viewLabel}${selectedSiHua.starName}化${selectedSiHua.siHua}】的飞化影响，按以下结构输出：
 
@@ -347,11 +475,11 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
   };
 
   return (
-    <div className="flex flex-col h-full rounded-xl overflow-hidden card-glass">
+    <div className="flex flex-col rounded-xl overflow-hidden card-glass lg:h-[calc(100vh-120px)]">
 
       {/* ── Topic buttons ── */}
       <div className="flex-shrink-0 px-2 pt-2.5 pb-2" style={{ borderBottom: '1px solid var(--t-border)' }}>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-7 gap-1">
           {TOPICS.map(t => {
             const isActive = activeTopic === t.key;
             return (
@@ -374,7 +502,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
       </div>
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[50vh] lg:min-h-0">
 
         {/* Loading state before first message */}
         {messages.length === 0 && (
