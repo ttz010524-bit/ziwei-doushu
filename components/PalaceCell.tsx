@@ -2,6 +2,7 @@
 import { motion } from 'framer-motion';
 import type { Palace, Star } from '@/lib/ziwei/types';
 import { STEMS, BRANCHES } from '@/lib/ziwei/constants';
+import type { TimeView } from './TimeNav';
 import clsx from 'clsx';
 
 interface PalaceCellProps {
@@ -15,8 +16,10 @@ interface PalaceCellProps {
   overlayStarSiHua?: Record<string, string>;
   /** 叠加标签：'年'（流年）或 '限'（大限） */
   overlayLabel?: string;
-  /** 点击叠加四化 badge 回调 */
-  onSiHuaClick?: (starName: string, siHua: string) => void;
+  /** 叠加四化所属时间层，点击叠加 badge 时一并上报 */
+  overlayView?: TimeView;
+  /** 点击四化 badge 回调：本命四化传 'mingpan'，叠加四化传所属时间层 */
+  onSiHuaClick?: (starName: string, siHua: string, view: TimeView) => void;
 }
 
 const SIHUA_STYLES: Record<string, string> = {
@@ -55,7 +58,7 @@ const SiHuaBadge = ({
 
 export default function PalaceCell({
   palace, onClick, onStarClick, isSelected, isSanFang, delay = 0,
-  overlayStarSiHua, overlayLabel, onSiHuaClick,
+  overlayStarSiHua, overlayLabel, overlayView = 'mingpan', onSiHuaClick,
 }: PalaceCellProps) {
   const { branch, stem, name, stars, daXianAge, isCurrentDaXian, isMingGong, isShenGong } = palace;
   const ganzhi = `${STEMS[stem]}${BRANCHES[branch]}`;
@@ -130,6 +133,7 @@ export default function PalaceCell({
         )}
         {majorStars.map((star) => {
           const overlaySiHua = overlayStarSiHua?.[star.name];
+          const siHua = star.siHua;
           return (
             <div
               key={star.name}
@@ -142,7 +146,15 @@ export default function PalaceCell({
               )}>
                 {star.name}
               </span>
-              {star.siHua && <SiHuaBadge siHua={star.siHua} />}
+              {siHua && (
+                <SiHuaBadge
+                  siHua={siHua}
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSiHuaClick?.(star.name, siHua, 'mingpan');
+                  }}
+                />
+              )}
               {overlaySiHua && (
                 <SiHuaBadge
                   siHua={overlaySiHua}
@@ -150,7 +162,7 @@ export default function PalaceCell({
                   label={overlayLabel}
                   onClick={e => {
                     e.stopPropagation();
-                    onSiHuaClick?.(star.name, overlaySiHua);
+                    onSiHuaClick?.(star.name, overlaySiHua, overlayView);
                   }}
                 />
               )}
@@ -164,10 +176,19 @@ export default function PalaceCell({
         <div className="flex flex-wrap gap-x-1 mt-0.5">
           {luckyStars.map(s => {
             const overlaySiHua = overlayStarSiHua?.[s.name];
+            const siHua = s.siHua;
             return (
               <span key={s.name} className="inline-flex items-center text-[9px] text-sky-500/70 leading-tight">
                 {s.name}
-                {s.siHua && <SiHuaBadge siHua={s.siHua} />}
+                {siHua && (
+                  <SiHuaBadge
+                    siHua={siHua}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onSiHuaClick?.(s.name, siHua, 'mingpan');
+                    }}
+                  />
+                )}
                 {overlaySiHua && (
                   <SiHuaBadge
                     siHua={overlaySiHua}
@@ -175,7 +196,7 @@ export default function PalaceCell({
                     label={overlayLabel}
                     onClick={e => {
                       e.stopPropagation();
-                      onSiHuaClick?.(s.name, overlaySiHua);
+                      onSiHuaClick?.(s.name, overlaySiHua, overlayView);
                     }}
                   />
                 )}
