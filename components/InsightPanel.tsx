@@ -279,17 +279,21 @@ function AiContent({ text, streaming }: { text: string; streaming?: boolean }) {
         const sectionMatch = line.match(/^\*\*【(.+?)】\*\*$/);
         if (sectionMatch) {
           return (
-            <div key={i} className="pt-3 pb-0.5 first:pt-0">
-              <span className="text-[11px] font-semibold tracking-wide" style={{ color: 'var(--t-gold)' }}>
+            <div
+              key={i}
+              className="pt-4 pb-1 pl-2.5 first:pt-0 border-l-2"
+              style={{ borderColor: 'var(--t-gold)' }}
+            >
+              <span className="text-[14px] font-semibold tracking-wide" style={{ color: 'var(--t-gold)' }}>
                 【{sectionMatch[1]}】
               </span>
             </div>
           );
         }
-        if (line.trim() === '') return <div key={i} className="h-1" />;
+        if (line.trim() === '') return <div key={i} className="h-1.5" />;
         const parts = line.split(/\*\*(.+?)\*\*/);
         return (
-          <div key={i} className="text-[11px] leading-relaxed" style={{ color: 'var(--t-text2)' }}>
+          <div key={i} className="text-[13.5px] leading-[1.85]" style={{ color: 'var(--t-text1)' }}>
             {parts.map((part, j) =>
               j % 2 === 0
                 ? part
@@ -487,7 +491,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                 key={t.key}
                 onClick={() => handleTopicClick(t.key)}
                 disabled={loading}
-                className="py-1.5 text-[10px] font-medium rounded-lg transition-all duration-150 disabled:opacity-40"
+                className="py-1.5 text-[11px] font-medium rounded-lg transition-all duration-150 disabled:opacity-40"
                 style={{
                   background: isActive ? 'rgba(212,168,67,0.12)' : 'transparent',
                   border: `1px solid ${isActive ? 'rgba(212,168,67,0.3)' : 'var(--t-border)'}`,
@@ -502,13 +506,13 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
       </div>
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[50vh] lg:min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5 min-h-[50vh] lg:min-h-0">
 
         {/* Loading state before first message */}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-4xl mb-3" style={{ color: 'var(--t-gold)', opacity: 0.1 }}>✦</div>
-            <p className="text-[10px] animate-pulse" style={{ color: 'var(--t-faint)' }}>命格解读生成中…</p>
+            <p className="text-[12px] animate-pulse" style={{ color: 'var(--t-faint)' }}>命格解读生成中…</p>
           </div>
         )}
 
@@ -525,7 +529,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                   className="flex justify-end"
                 >
                   <div
-                    className="max-w-[85%] rounded-xl px-3 py-2 text-[11px]"
+                    className="max-w-[85%] rounded-xl px-3 py-2 text-[12px] leading-relaxed"
                     style={{
                       background: 'rgba(212,168,67,0.08)',
                       border: '1px solid rgba(212,168,67,0.18)',
@@ -547,7 +551,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                 animate={{ opacity: 1, y: 0 }}
               >
                 <div
-                  className="text-[9px] tracking-widest mb-2 flex items-center gap-1.5"
+                  className="text-[10px] tracking-widest mb-2.5 flex items-center gap-1.5"
                   style={{ color: 'var(--t-faint)' }}
                 >
                   <span style={{ color: 'var(--t-gold)', opacity: 0.4 }}>✦</span>
@@ -570,7 +574,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="继续追问，如：今年适合换工作吗？"
             disabled={loading}
-            className="flex-1 rounded-lg px-3 py-2 text-[11px] focus:outline-none transition-colors"
+            className="flex-1 rounded-lg px-3 py-2.5 text-[12px] focus:outline-none transition-colors"
             style={{
               background: 'var(--t-card)',
               border: '1px solid var(--t-border)',
@@ -580,7 +584,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="px-3 py-2 rounded-lg text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3.5 py-2.5 rounded-lg text-[12px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             style={{
               background: 'rgba(212,168,67,0.15)',
               border: '1px solid rgba(212,168,67,0.25)',

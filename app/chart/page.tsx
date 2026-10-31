@@ -53,7 +53,7 @@ export default function ChartPage() {
       </button>
 
       {/* 窄屏单列、宽屏两栏：命盘 + 解读 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-5 mt-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-5 mt-4 items-start">
         <ChartBoard
           chart={chart}
           onPalaceSelect={setSelectedPalace}
