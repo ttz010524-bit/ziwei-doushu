@@ -30,10 +30,22 @@ function sse(text: string): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      // 按段落切块，模拟流式输出
-      for (const part of text.split(/\n\n+/)) {
+      // 按空行分段，模拟流式输出。分隔符必须一起发出去：客户端是把各段原文
+      // 顺次拼接的，丢掉 \n\n 的话整篇会挤成一行，**【小节名】** 也就不再独占一行，
+      // 渲染端的分节逻辑会全部失效。
+      const re = /\n\n+/g;
+      let last = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const part = text.slice(last, m.index);
+        last = m.index + m[0].length;
         if (!part.trim()) continue;
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: { text: part } })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: { text: part + '\n\n' } })}\n\n`));
+        await new Promise((r) => setTimeout(r, 12));
+      }
+      const rest = text.slice(last);
+      if (rest.trim()) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: { text: rest } })}\n\n`));
         await new Promise((r) => setTimeout(r, 12));
       }
       controller.enqueue(encoder.encode('data: [DONE]\n\n'));
