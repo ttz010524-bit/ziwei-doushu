@@ -56,6 +56,21 @@
   --r-lg:  16px;
   --r-xl:  24px;
   --r-pill:999px;
+
+  /* 组件层语义别名 —— components/ 下的面板（InsightPanel、ChartBoard、TimeNav 等）
+     一律引用这一组 --t-* 名字。上游只定义了 --tx-* / --ac 这套底层 token，
+     --t-* 从未定义，于是 var(--t-gold) 之类全部落空，样式被浏览器整条丢弃：
+     金色标题退化成继承色、边框消失、文字层级全平。这里补上映射。
+     自定义属性的替换是惰性的，暗色模式只要覆盖 --tx-* / --ac，这组别名会自动跟随。 */
+  --t-text:    var(--tx-0);
+  --t-text1:   var(--tx-1);
+  --t-text2:   var(--tx-2);
+  --t-faint:   var(--tx-3);
+  --t-gold:    var(--ac);
+  --t-border:  var(--bdr);
+  --t-card:    var(--bg-card);
+  --t-bg:      var(--bg-0);
+  --t-surface: var(--bg-1);
 }
 
 /* ─── 暗色模式 Token 覆盖 ──────────────────────────────── */
@@ -146,6 +161,18 @@ body {
   background: var(--bg-1);
   border: 1px solid var(--bdr);
   border-radius: var(--r-md);
+}
+/* 玻璃卡片：解读面板、命盘摘要等浮层。圆角交给各组件自己的 rounded-* 工具类。 */
+.card-glass {
+  background: var(--bg-card);
+  border: 1px solid var(--bdr);
+  box-shadow: var(--sh-sm);
+  backdrop-filter: blur(14px);
+}
+/* 玻璃卡片里的次级内容块 */
+.card-inner {
+  background: var(--bg-1);
+  border: 1px solid var(--bdr-med);
 }
 
 /* 深色区块 */
