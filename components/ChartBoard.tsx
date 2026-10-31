@@ -10,7 +10,7 @@ interface ChartBoardProps {
   chart: ZiweiChart;
   onStarSelect?: (star: Star, palace: Palace) => void;
   onPalaceSelect?: (palace: Palace) => void;
-  onSiHuaClick?: (starName: string, siHua: string, view: TimeView) => void;
+  onSiHuaClick?: (starName: string, siHua: string, view: TimeView, liunianYear: number) => void;
 }
 
 const BRANCH_GRID_POS: Record<number, [number, number]> = {
@@ -140,7 +140,7 @@ export default function ChartBoard({ chart, onStarSelect, onPalaceSelect, onSiHu
                 overlayStarSiHua={Object.keys(overlayData).length > 0 ? overlayData : undefined}
                 overlayLabel={overlayLabel}
                 overlayView={timeView}
-                onSiHuaClick={(starName, siHua, v) => onSiHuaClick?.(starName, siHua, v)}
+                onSiHuaClick={(starName, siHua, v) => onSiHuaClick?.(starName, siHua, v, liunianYear)}
               />
             </div>
           );

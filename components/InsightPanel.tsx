@@ -14,6 +14,14 @@ interface SelectedSiHua {
   starName: string;
   siHua: string;
   view: TimeView;
+  /** 点开时盘面时间轴上选中的流年（用于把流年四化算准） */
+  liunianYear?: number;
+}
+
+/** 客户端选中的运限层，随请求体一起发给服务端（服务端据此算大限/流年四化） */
+interface LuckCtx {
+  view: 'mingpan' | 'daxian' | 'liunian';
+  liunianYear?: number;
 }
 
 interface InsightPanelProps {
@@ -255,19 +263,20 @@ export const TOPIC_PROMPTS: Record<string, string> = {
 具体可行的家庭沟通与长辈相处建议。`,
 };
 
+/** 宫名 → 主管领域。键名是命盘里的真实宫名（iztro 口径：只有命宫带「宫」字，交友宫叫「仆役」） */
 const PALACE_ROLES: Record<string, string> = {
-  '命宫':   '自我、性格、先天格局',
-  '兄弟宫': '兄弟关系、合伙人',
-  '夫妻宫': '感情关系、婚姻状态',
-  '子女宫': '子女缘分、下属关系',
-  '财帛宫': '财运来源、收入方式',
-  '疾厄宫': '身体健康、意外',
-  '迁移宫': '外出机遇、人际格局',
-  '交友宫': '朋友圈、贵人、小人',
-  '官禄宫': '事业成就、社会地位',
-  '田宅宫': '不动产、家庭环境',
-  '福德宫': '精神享受、内心福分',
-  '父母宫': '父母关系、文书契约',
+  '命宫': '自我、性格、先天格局',
+  '兄弟': '兄弟关系、合伙人',
+  '夫妻': '感情关系、婚姻状态',
+  '子女': '子女缘分、下属关系',
+  '财帛': '财运来源、收入方式',
+  '疾厄': '身体健康、意外',
+  '迁移': '外出机遇、人际格局',
+  '仆役': '朋友圈、贵人、小人',
+  '官禄': '事业成就、社会地位',
+  '田宅': '不动产、家庭环境',
+  '福德': '精神享受、内心福分',
+  '父母': '父母关系、文书契约',
 };
 
 /** Render AI markdown: **【Title】** → gold header, **bold** → strong */
@@ -403,15 +412,18 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
 **【实际建议】**
 基于此四化的具体可操作建议。`;
 
-    sendMessage(prompt, true);
+    sendMessage(prompt, true, { view: selectedSiHua.view, liunianYear: selectedSiHua.liunianYear });
   }, [selectedSiHua]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const streamResponse = async (apiMessages: { role: 'user' | 'assistant'; content: string }[]) => {
+  const streamResponse = async (
+    apiMessages: { role: 'user' | 'assistant'; content: string }[],
+    luck?: LuckCtx,
+  ) => {
     try {
       const res = await fetch('/api/interpret', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chart, messages: apiMessages }),
+        body: JSON.stringify({ chart, messages: apiMessages, luck }),
       });
       if (res.status === 404) throw new Error('api-missing');
       if (!res.ok) throw new Error('请求失败');
@@ -451,7 +463,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
     }
   };
 
-  const sendMessage = (text: string, hidden = false) => {
+  const sendMessage = (text: string, hidden = false, luck?: LuckCtx) => {
     if (!text.trim() || loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
@@ -465,7 +477,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    streamResponse(apiMessages);
+    streamResponse(apiMessages, luck);
   };
 
   const handleTopicClick = (topicKey: string) => {
@@ -566,6 +578,9 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
 
       {/* ── Input ── */}
       <div className="flex-shrink-0 px-3 pb-3 pt-2" style={{ borderTop: '1px solid var(--t-border)' }}>
+        <p className="text-[10px] leading-relaxed mb-2" style={{ color: 'var(--t-faint)' }}>
+          本地解读数据集查表，非 AI 对话：按命盘已有断语与运限四化作答，不消耗 token、不出网。
+        </p>
         <div className="flex gap-2">
           <input
             type="text"

@@ -7,7 +7,8 @@
  */
 import type { NextRequest } from 'next/server';
 import { DATASET_RANGE, datasetInstalled, lookupReading } from '@/lib/ziwei/dataset';
-import { buildAnswer } from '@/lib/ziwei/interpret';
+import { buildAnswer, type AnswerContext, type LuckContext } from '@/lib/ziwei/interpret';
+import type { ZiweiChart } from '@/lib/ziwei/types';
 
 export const runtime = 'nodejs';
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
     return new Response('dataset not installed', { status: 404 });
   }
 
-  let body: { chart?: ChartPayload; messages?: MessagePayload[] };
+  let body: { chart?: ChartPayload & Partial<ZiweiChart>; messages?: MessagePayload[]; luck?: LuckContext };
   try {
     body = await request.json();
   } catch {
@@ -97,5 +98,11 @@ export async function POST(request: NextRequest) {
     return sse('未在解读数据集中找到这张命盘，请核对出生日期与时辰。');
   }
 
-  return sse(buildAnswer(prompt, reading));
+  // 命盘本身带进来：数据集只有本命断语，大限/流年四化与落宫关系要靠命盘现算
+  const chart = body.chart && Array.isArray(body.chart.palaces) && Array.isArray(body.chart.daXians)
+    ? (body.chart as unknown as ZiweiChart)
+    : undefined;
+  const ctx: AnswerContext = { chart, luck: body.luck };
+
+  return sse(buildAnswer(prompt, reading, ctx));
 }
