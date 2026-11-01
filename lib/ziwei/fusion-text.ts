@@ -16,14 +16,13 @@
  * 运限层由八字的大运流年承担——这正是两术侧重点不同带来的互补。
  */
 import type { ZiweiChart } from './types';
-import {
-  computeBazi, ganZhiShiShen, liuNianGanZhi, GAN_ELEMENT,
-  type BaziChart, type DaYunItem,
-} from './bazi';
-import { deriveZiweiLabels, type ZiweiLabel } from './ziwei-labels';
-import { deriveBaziLabels, type BaziLabel } from './bazi-labels';
-import { fuse, toMatrix, AXIS_NAME, type Axis, type FusionResult } from './fusion';
+import { liuNianGanZhi, type BaziChart } from './bazi';
+import { buildFusionData, currentDaYun, ganZhiTone } from './fusion-data';
+import { type ZiweiLabel } from './ziwei-labels';
+import { type BaziLabel } from './bazi-labels';
+import { toMatrix, AXIS_NAME, type Axis, type FusionResult } from './fusion';
 import { WU_XING_CAREER } from './bazi-labels';
+import { corpusInstalled, niForPalaces, type NiHit } from './ni-corpus';
 
 export interface FusionFacts {
   /** 可核查的事实文本 */
@@ -36,26 +35,11 @@ export interface FusionFacts {
   ziweiLabels: ZiweiLabel[];
   /** 八字侧标签 */
   baziLabels: BaziLabel[];
+  /** 按本盘星曜检索到的倪师原话 */
+  quotes: NiHit[];
 }
 
 const WU_XING_ORDER = ['木', '火', '土', '金', '水'] as const;
-
-/** 当前所处大运 */
-function currentDaYun(b: BaziChart, year: number): DaYunItem | undefined {
-  return b.daYun.find((d) => year >= d.startYear && year <= d.startYear + (d.endAge - d.startAge));
-}
-
-/** 某一运限干支与日主的关系（简版，不做完整合参） */
-function ganZhiTone(b: BaziChart, ganZhi: string): string {
-  const ss = ganZhiShiShen(b.dayGan, ganZhi);
-  const parts: string[] = [`天干${ganZhi[0]}为${ss.gan}`, `地支${ganZhi[1]}本气为${ss.zhi}`];
-  if (b.useGod) {
-    if (ss.gan === b.useGod.shiShen) parts.push('天干正是用神');
-    if (ss.zhi === b.useGod.shiShen) parts.push('地支本气正是用神');
-    if (b.jiShen && GAN_ELEMENT[ganZhi[0]] === b.jiShen) parts.push('天干为忌神');
-  }
-  return parts.join('，');
-}
 
 /** 八字盘那一段 */
 function baziSection(b: BaziChart, year: number): string {
@@ -158,10 +142,7 @@ function conflictSection(result: FusionResult): string {
  */
 export function buildFusionBrief(chart: ZiweiChart, year?: number): string {
   const y = year ?? new Date().getFullYear();
-  const ziweiLabels = deriveZiweiLabels(chart);
-  const bazi = computeBazi(chart);
-  const baziLabels = bazi ? deriveBaziLabels(bazi) : [];
-  const result = fuse(ziweiLabels, baziLabels);
+  const { bazi, ziweiLabels, baziLabels, result } = buildFusionData(chart, y);
 
   const L: string[] = [];
 
@@ -205,7 +186,42 @@ export function buildFusionBrief(chart: ZiweiChart, year?: number): string {
   L.push(`职业落点候选：${candidateSection(result).replace(/\n/g, '；')}`);
   L.push(`冲突与待复核：${conflictSection(result).replace(/\n/g, '；')}`);
 
+  // —— 语录：解读层原本只能引那几条手挑的，这里按盘面实时取 ——
+  const qLines = quotesSection(niQuotesForChart(chart, 4));
+  if (qLines.length) {
+    L.push(qLines.join('\n'));
+  }
+
   return L.join('\n');
+}
+
+/**
+ * 按本盘实际坐的星曜检索倪师原话。
+ *
+ * 事业相关的原话集中在官禄宫 / 财帛宫 / 命宫三节，所以取这三处最贴题；
+ * 命中的是**倪师原话**，不是本应用自己写的断语——出处与时间码都随行。
+ * 语料库没装（开源分发可能不带）时返回空数组，不影响合参其余部分。
+ */
+export function niQuotesForChart(chart: ZiweiChart, limit = 6): NiHit[] {
+  try {
+    if (!corpusInstalled()) return [];
+    return niForPalaces(chart, ['官禄', '财帛', '命'], limit);
+  } catch {
+    return [];
+  }
+}
+
+/** 语录那一段的文字。著作权归原权利人，只限非商用引用，这里把话说明白。 */
+function quotesSection(hits: NiHit[]): string[] {
+  if (!hits.length) return [];
+  const L: string[] = [
+    '倪师《天纪》原话（按本盘官禄／财帛／命宫实际坐的星曜检索；著作权归原权利人，仅限非商用引用）：',
+  ];
+  for (const h of hits) {
+    const note = h.note ? `〔${h.note}〕` : '';
+    L.push(`- 「${h.quote}」${note}（${h.citation}）`);
+  }
+  return L;
 }
 
 /**
@@ -214,10 +230,8 @@ export function buildFusionBrief(chart: ZiweiChart, year?: number): string {
  */
 export function buildFusionFacts(chart: ZiweiChart, year?: number): FusionFacts {
   const y = year ?? new Date().getFullYear();
-  const ziweiLabels = deriveZiweiLabels(chart);
-  const bazi = computeBazi(chart);
-  const baziLabels = bazi ? deriveBaziLabels(bazi) : [];
-  const result = fuse(ziweiLabels, baziLabels);
+  const { bazi, ziweiLabels, baziLabels, result } = buildFusionData(chart, y);
+  const quotes = niQuotesForChart(chart, 6);
 
   const sections: string[] = [];
 
@@ -235,8 +249,14 @@ export function buildFusionFacts(chart: ZiweiChart, year?: number): FusionFacts 
   );
 
   sections.push(`**【两术各自的依据】**\n\n${basisSection(ziweiLabels, baziLabels)}`);
+
+  const qLines = quotesSection(quotes);
+  if (qLines.length) {
+    sections.push(`**【倪师语录】**\n\n${qLines.join('\n')}`);
+  }
+
   sections.push(`**【职业落点候选】**\n\n${candidateSection(result)}`);
   sections.push(`**【冲突与待复核】**\n\n${conflictSection(result)}`);
 
-  return { text: sections.join('\n\n'), result, bazi, ziweiLabels, baziLabels };
+  return { text: sections.join('\n\n'), result, bazi, ziweiLabels, baziLabels, quotes };
 }

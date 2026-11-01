@@ -23,6 +23,7 @@ import { TOPIC_LABEL, TOPIC_PALACE_NAME } from './db-analysis';
 import { STEMS } from './constants';
 import { getDaXianSiHua, getLiuNianSiHua, getSiHuaByStem } from './sihua';
 import { buildFusionBrief } from './fusion-text';
+import { corpusInstalled, niForPalaces } from './ni-corpus';
 
 export const TOPIC_KEYS: TopicKey[] = [
   'overview', 'personality', 'love', 'career', 'wealth', 'health',
@@ -498,6 +499,55 @@ function fusionBriefText(chart: ZiweiChart, year: number): string {
   }
 }
 
+// ─── 倪师原话（按盘面实时检索） ─────────────────────────────
+
+/**
+ * 每一维该引哪几宫的倪师原话。
+ * 宫名按命盘上的写法（iztro 用「仆役」而不是「交友」）。
+ */
+const TOPIC_NI_PALACES: Record<TopicKey, string[]> = {
+  overview: ['命', '官禄'],
+  personality: ['命'],
+  love: ['夫妻'],
+  career: ['官禄', '财帛'],
+  wealth: ['财帛', '官禄'],
+  health: ['疾厄'],
+  family: ['兄弟'],
+  children: ['子女'],
+  move: ['迁移'],
+  friends: ['仆役'],
+  home: ['田宅'],
+  spirit: ['福德'],
+  parents: ['父母'],
+};
+
+/**
+ * 倪师原话那一段：按命盘上**实际坐的星曜**实时检索语料库。
+ *
+ * 数据集里的断语是本应用写的，倪师原话是倪师说的——两者不能混为一谈，
+ * 所以原话单独成段，出处（节 + 时间码 + 第几讲）随行，可回原视频核对。
+ *
+ * 语料库没装时返回空串，不影响解读其余部分。
+ */
+function niQuotesText(chart: ZiweiChart, topic: TopicKey, limit = 4): string {
+  try {
+    if (!corpusInstalled()) return '';
+    const palaces = TOPIC_NI_PALACES[topic] ?? ['命'];
+    const hits = niForPalaces(chart, palaces, limit);
+    if (!hits.length) return '';
+    const L = [
+      '倪师《天纪》原话（按本盘相关宫位实际坐的星曜检索；著作权归原权利人，仅限非商用引用）：',
+    ];
+    for (const h of hits) {
+      const note = h.note ? `〔${h.note}〕` : '';
+      L.push(`- 「${h.quote}」${note}（${h.citation}）`);
+    }
+    return L.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 /** 核对提问里那颗四化在指定运限层是否成立 */
 function siHuaCheckText(ctx: AnswerContext | undefined, pc: PromptContext): string {
   if (!ctx?.chart || !pc.star || !pc.siHua) return '';
@@ -578,6 +628,11 @@ function freeAnswer(topic: TopicKey, reading: Reading, ctx: AnswerContext): stri
   push('风险提醒', blocks.get('风险提醒'));
   push('三方四正', blocks.get('三方四正联动'));
 
+  // 倪师原话：按盘面实时检索（事业类已由合参简报带出，不重复）
+  if (ctx.chart && topic !== 'career') {
+    push('倪师原话', niQuotesText(ctx.chart, topic));
+  }
+
   if (!out.length) out.push(`**【${short}】**\n\n${summary}`);
   return out.join('\n\n');
 }
@@ -616,6 +671,10 @@ export function buildAnswer(prompt: string, reading: Reading, ctx?: AnswerContex
   if (ectx.chart && pc.topic === 'career') {
     const brief = fusionBriefText(ectx.chart, year);
     if (brief) out.push(`**【八字×紫微合参】**\n\n${brief}`);
+  } else if (ectx.chart) {
+    // 其余维度补一段倪师原话：按盘面实际坐的星曜实时检索，出处随行
+    const quotes = niQuotesText(ectx.chart, pc.topic);
+    if (quotes) out.push(`**【倪师原话】**\n\n${quotes}`);
   }
 
   if (!out.length) {
