@@ -150,6 +150,7 @@ export interface DaYunItem {
   ganZhi: string;
   startAge: number;
   endAge: number;
+  /** 该步大运的起始公历年（虚岁 startAge 对应的年份） */
   startYear: number;
 }
 
@@ -578,13 +579,19 @@ function computeDaYun(chart: ZiweiChart): {
     const yun = lunar.getEightChar().getYun(b.gender === 'male' ? 1 : 0, 1);
     const list = yun.getDaYun() ?? [];
     const startSolar = yun.getStartSolar();
-    const startY = Number(startSolar.toYmd().slice(0, 4));
     const daYun: DaYunItem[] = [];
     for (const d of list) {
       const gz = d.getGanZhi();
       if (!gz) continue;   // 童限占位
       const startAge = d.getStartAge();
-      daYun.push({ ganZhi: gz, startAge, endAge: d.getEndAge(), startYear: startY + (startAge - 1) });
+      // 起始年用 lunar-javascript 自己的 getStartYear()。
+      // 它按「出生年 + 起运虚岁 - 1」换算；早前这里写的是
+      // 「起运公历年 + (起运岁数 - 1)」，把整张大运表整体挪后了「起运岁数」年——
+      // 九岁起运的命盘能差出九年，「当前大运」直接选错一步。
+      const startYear = typeof d.getStartYear === 'function'
+        ? d.getStartYear()
+        : b.year + startAge - 1;
+      daYun.push({ ganZhi: gz, startAge, endAge: d.getEndAge(), startYear });
     }
     return {
       daYun,
