@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ZiweiChart, Palace } from '@/lib/ziwei/types';
+import { aiModeNote, useAiMode } from '@/lib/ziwei/ai-mode';
 import type { TimeView } from './TimeNav';
 
 interface Message {
@@ -332,6 +333,8 @@ export default function InsightPanel({ chart, selectedPalace, selectedSiHua }: I
   const lastPalaceBranch = useRef<number | undefined>(undefined);
   const lastSiHuaKey = useRef<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 服务端当前是模型解读还是本地查表 —— 文案不能写死
+  const aiStatus = useAiMode();
 
   // Keep refs in sync
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -425,7 +428,11 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chart, messages: apiMessages, luck }),
       });
-      if (res.status === 404) throw new Error('api-missing');
+      if (res.status === 404) {
+        // 404 有两种：没有这个路由（开源版），或者没装解读数据集。区分开，别混着说。
+        const detail = await res.text().catch(() => '');
+        throw new Error(detail.includes('dataset') ? 'dataset-missing' : 'api-missing');
+      }
       if (!res.ok) throw new Error('请求失败');
       if (!res.body) throw new Error('无响应流');
 
@@ -455,8 +462,13 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
         }
       }
     } catch (e) {
-      const missing = e instanceof Error && e.message === 'api-missing';
-      setMessages(prev => [...prev, { role: 'assistant', content: missing ? '开源版不含 AI 解读接口（/api/interpret），需要你自己实现后才能用，详见 README「快速开始」。排盘本身不需要任何 API Key。' : '解读失败，请稍后重试。' }]);
+      const msg = e instanceof Error ? e.message : '';
+      const content = msg === 'dataset-missing'
+        ? '本地解读数据集未安装，无法查表解读。装好数据集后重试；排盘本身不需要任何 API Key。'
+        : msg === 'api-missing'
+          ? '开源版不含 AI 解读接口（/api/interpret），需要你自己实现后才能用，详见 README「快速开始」。排盘本身不需要任何 API Key。'
+          : '解读失败，请稍后重试。';
+      setMessages(prev => [...prev, { role: 'assistant', content }]);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -579,7 +591,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
       {/* ── Input ── */}
       <div className="flex-shrink-0 px-3 pb-3 pt-2" style={{ borderTop: '1px solid var(--t-border)' }}>
         <p className="text-[10px] leading-relaxed mb-2" style={{ color: 'var(--t-faint)' }}>
-          本地解读数据集查表，非 AI 对话：按命盘已有断语与运限四化作答，不消耗 token、不出网。
+          {aiModeNote(aiStatus)}
         </p>
         <div className="flex gap-2">
           <input

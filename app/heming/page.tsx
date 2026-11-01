@@ -6,6 +6,7 @@ import { formToBirthInfo } from '@/lib/ziwei/share';
 import { generateChart as buildChart } from '@/lib/ziwei/algorithm';
 import type { BirthInfo, ZiweiChart } from '@/lib/ziwei/types';
 import { useTheme } from '@/components/ThemeProvider';
+import { aiModeNote, useAiMode } from '@/lib/ziwei/ai-mode';
 
 // ─── AiContent 渲染器（与 InsightPanel 一致）────────────────
 function AiContent({ text, streaming }: { text: string; streaming?: boolean }) {
@@ -51,6 +52,8 @@ export default function HemingPage() {
   const router = useRouter();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  // 服务端当前是模型解读还是本地查表 —— 文案不能写死
+  const aiStatus = useAiMode();
 
   // ─── 双方命盘状态 ─────────────────────────────────────────
   const [chartA, setChartA] = useState<ZiweiChart | null>(null);
@@ -68,6 +71,8 @@ export default function HemingPage() {
   const [apiMissing, setApiMissing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const analysisRef = useRef<HTMLDivElement>(null);
+  // 上一轮追问：模型才知道「那明年呢」问的是什么
+  const lastQuestionRef = useRef<string | undefined>(undefined);
 
   // ─── 起盘（单次调用，返回 chart 给统一流程使用）──────────
   // 开源版不含后端 /api/generate：直接用本仓库的排盘引擎在浏览器里起盘
@@ -115,7 +120,12 @@ export default function HemingPage() {
       const res = await fetch('/api/heming', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chartA: cA, chartB: cB, question: q ?? undefined }),
+        body: JSON.stringify({
+          chartA: cA,
+          chartB: cB,
+          question: q ?? undefined,
+          prevQuestion: lastQuestionRef.current,
+        }),
       });
       if (res.status === 404) { setApiMissing(true); throw new Error('api-missing'); }
       if (!res.ok || !res.body) throw new Error();
@@ -141,6 +151,7 @@ export default function HemingPage() {
       }
       // scroll to analysis
       setTimeout(() => analysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      lastQuestionRef.current = q ?? undefined;
     } catch {
       setAnalysisError(true);
     } finally {
@@ -246,6 +257,9 @@ export default function HemingPage() {
                 填好双方出生信息后，点击下方按钮<br />
                 AI 将基于倪海厦体系深度分析两人缘分匹配度
               </div>
+              <div style={{ fontSize: '11px', color: 'var(--tx-3)', marginBottom: '20px', lineHeight: 1.7, opacity: 0.85 }}>
+                {aiModeNote(aiStatus)}
+              </div>
               <button
                 onClick={() => runAnalysis()}
                 style={{
@@ -285,7 +299,7 @@ export default function HemingPage() {
           {analysisError && (
             <div style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--bdr)', background: 'var(--bg-card)', fontSize: '13px', color: 'var(--tx-2)', marginTop: '12px' }}>
               {apiMissing
-                ? '开源版不含合盘 AI 分析接口（/api/heming），需要你自己实现后才能用。两人的命盘可以分别到「排盘」页（/chart）查看。'
+                ? '未找到合盘分析接口（/api/heming）。开源版不含该接口，需要你自己实现；两人的命盘可以分别到「排盘」页（/chart）查看。'
                 : '分析暂时不可用，请重试。'}
             </div>
           )}

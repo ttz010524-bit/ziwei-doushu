@@ -276,7 +276,7 @@ cd ziwei-doushu
 # 安装依赖
 npm install
 
-# 配置环境变量（只看排盘可以跳过；AI 配置仅在你自己实现了 /api/* 接口时才用得上）
+# 配置环境变量（只看排盘可以跳过；接模型解读才需要填 ANTHROPIC_*）
 cp .env.example .env.local
 
 # 启动开发服务器
@@ -292,25 +292,64 @@ npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时�
 
 每次 push 与 PR 都会在 GitHub Actions 上跑同一套（见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)）。
 
-> **注意：排盘、命盘展示、合盘起盘都在浏览器里用本仓库的引擎完成，不需要任何 API Key。**本 fork 已内置 `/api/interpret`（本地查表，见下）；合盘 AI 分析（`/api/heming`）仍需你自己实现，没实现之前那一处会直接提示「开源版不含该接口」。
+> **注意：排盘、命盘展示、合盘起盘都在浏览器里用本仓库的引擎完成，不需要任何 API Key。**本 fork 已内置 `/api/interpret`（解读）与 `/api/heming`（合盘）两条接口：不配模型时是**本地查表**，全程不出本机；配上模型后由模型把查表结果讲成一段解读 —— 这时出生信息会发到你配置的模型服务，详见 [3.1](#31-解读与合盘两层事实一层表达)。
 
-### 3.1 本地查表解读（无需 API Key）
+### 3.1 解读与合盘：两层事实，一层表达
 
-`/api/interpret` 在本 fork 里是一层**本地查表**：按出生日期 + 时辰 + 性别命中 v4.0 数据集里对应命盘的 13 维解读，
-再把客户端提问映射到该维的小节。全程不出本机，**不需要任何 API Key，也不会把出生信息发到任何外部服务**。
+这两条接口都是**事实层 + 表达层**的分工：
+
+- **事实层**（确定性，本地算）：查 v4.0 解读数据集、按排盘引擎现算大限/流年四化与落宫、算合盘双方的天作之合对应与四化互参。全部可复核，不含任何模型输出。
+- **表达层**（可选的模型）：把事实层组织成给命主看的解读。模型**只能用事实层里的信息**，系统提示词里写死了不许自己排盘、不许虚构倪师原话。
 
 | 文件 | 作用 |
 |------|------|
 | `lib/ziwei/dataset.ts` | 服务端查表：流式解压 `.zst` 并按 key 取行 |
-| `lib/ziwei/interpret.ts` | 提问 → 维度 → 小节的路由 |
-| `app/api/interpret/route.ts` | SSE 路由，帧格式 `data: {"delta":{"text":"…"}}\n\n` |
+| `lib/ziwei/interpret.ts` | 提问 → 维度 → 小节的路由（事实层） |
+| `lib/ziwei/heming.ts` | 合盘事实层：双方命格、夫妻宫/福德宫、天作之合、四化互参、大限与流年（确定性） |
+| `lib/ziwei/heming-knowledge.ts` | 倪师合盘框架与十四主星夫妻宫断语（事实层取材来源） |
+| `lib/ziwei/model.ts` | 模型层：Anthropic 协议客户端、系统规则「不许做什么」、命盘摘要 |
+| `lib/ziwei/sse.ts` | 两条路由共用的 SSE 帧格式 |
+| `app/api/interpret/route.ts` | 解读 SSE 路由 |
+| `app/api/heming/route.ts` | 合盘 SSE 路由 |
+| `app/api/ai-status/route.ts` | 告诉客户端当前是模型模式还是本地查表（用于如实标注） |
 
-要用它，先把 v4.0 数据集按[第二章](#二新13-维解读数据集-v402026-10-15)的方式下下来，解压到本机，
+三条路由的帧格式统一为 `data: {"delta":{"text":"…"}}\n\n`，末帧 `data: [DONE]\n\n`；
+客户端把增量顺次拼接后按 `^\*\*【(.+?)】\*\*$` 拆小节，所以模型输出的小节名沿用事实层的小节名 ——
+客户端要什么结构，事实层就出什么结构，两边天然对齐。
+
+**本地查表模式（默认，不需要任何 API Key）**
+
+`/api/interpret` 按出生日期 + 时辰 + 性别命中 v4.0 数据集里对应命盘的 13 维解读，再把客户端提问映射到该维的小节。
+`/api/heming` 只需要两张命盘，**不依赖解读数据集**，用排盘引擎现算即可。
+
+要用本地查表，先把 v4.0 数据集按[第二章](#二新13-维解读数据集-v402026-10-15)的方式下下来，解压到本机，
 再让 `lib/ziwei/dataset.ts` 找得到它：设环境变量 `ZIWEI_DATA_DIR`，或把数据目录放到
 `ziwei-data/`（会依次找 `ZIWEI_DATA_DIR` → 上两级同级目录 → 当前目录）。
 目录里要有 `months/year-YYYY/MM.zst`（按月切帧，查表只解压命中月份）或官方整年的
 `years/year-YYYY.jsonl.zst`（回退路径，单次解压 0.69 GB、约 1.4 s）。
 数据集本身不随本仓库分发，使用与再分发请遵守 [DATASET-LICENSE](./DATASET-LICENSE)（CC BY 4.0，需保留来源标注）。
+
+**模型模式（可选）**
+
+在 `.env.local` 里填一组 Anthropic 协议的变量，`/api/interpret` 与 `/api/heming` 就会走模型：
+
+```bash
+# 官方 Anthropic API
+ANTHROPIC_API_KEY=sk-ant-...
+
+# 或任何说 Anthropic 协议的兼容端点（本地代理、自建网关都算）
+ANTHROPIC_BASE_URL=http://127.0.0.1:15721
+ANTHROPIC_AUTH_TOKEN=PROXY_MANAGED
+
+# 可选：指定模型（默认 claude-opus-4-7）
+ANTHROPIC_MODEL=claude-opus-4-7
+```
+
+一个都不填就自动退回本地查表，功能不缺失，只是没那么「说人话」；
+模型调用失败也会降级回查表结果（已吐字则保留已出的部分并标注中断）。
+
+> ⚠️ **隐私**：开了模型模式后，出生信息（年月日时、性别、命盘内容）会随请求发到你上面配的模型服务。
+> 不接受这一点就别配 —— 本地查表模式全程不出本机。
 
 ---
 
@@ -399,9 +438,11 @@ npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时�
 | | 内容 |
 |---|---|
 | ✅ **开源** | 排盘引擎（`lib/ziwei/`）、古籍公版原文（`lib/classics/`）、SEO 知识图谱（`lib/seo/`）、Demo 界面、51.8 万样本数据集、13 维解读数据集 v4.0 |
-| ❌ **不开源** | 断语库（`lib/ziwei/db-analysis.ts` 是占位，线上是上万行的 13 主题断语）、AI 解读 prompt、后端 API（`/api/heming` 等）、用户系统（登录 / 会员 / 支付）、服务端安全（签名、防刷、水印）、部署配置 |
+| ❌ **不开源** | 断语库（`lib/ziwei/db-analysis.ts` 是占位，线上是上万行的 13 主题断语）、线上的 AI 解读 prompt 与商业站前端、用户系统（登录 / 会员 / 支付）、服务端安全（签名、防刷、水印）、部署配置 |
 
 如果你需要 AI 解读能力，可以参考 `lib/ziwei/patterns.ts` 和 `heming-knowledge.ts` 里的知识库，结合任意 LLM 自行构建 prompt。
+本 fork 已经把解读（`/api/interpret`）与合盘（`/api/heming`）两条接口的**事实层与表达层**都写好了，
+接一个 Anthropic 协议的端点就能用，细节见 [3.1](#31-解读与合盘两层事实一层表达)。
 
 ---
 
