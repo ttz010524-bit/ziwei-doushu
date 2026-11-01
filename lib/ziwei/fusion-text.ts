@@ -216,6 +216,8 @@ function quotesSection(hits: NiHit[]): string[] {
   if (!hits.length) return [];
   const L: string[] = [
     '倪师《天纪》原话（按本盘官禄／财帛／命宫实际坐的星曜检索；著作权归原权利人，仅限非商用引用）：',
+    '（引用规则：逐条原样引用，不得改写或合并；每条后面必须保留括号里的出处与〔考据〕标注——'
+      + '原话脱离出处就成了二手引述。模型讲解时也请把出处一起带出来。）',
   ];
   for (const h of hits) {
     const note = h.note ? `〔${h.note}〕` : '';

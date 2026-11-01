@@ -3,6 +3,7 @@ import { useState } from 'react';
 import BirthForm from '@/components/BirthForm';
 import ChartBoard from '@/components/ChartBoard';
 import ChartSummary from '@/components/ChartSummary';
+import FusionPanel from '@/components/FusionPanel';
 import InsightPanel from '@/components/InsightPanel';
 import type { TimeView } from '@/components/TimeNav';
 import { generateChart } from '@/lib/ziwei/algorithm';
@@ -59,7 +60,10 @@ export default function ChartPage() {
           onPalaceSelect={setSelectedPalace}
           onSiHuaClick={(starName, siHua, v, liunianYear) => setSelectedSiHua({ starName, siHua, view: v, liunianYear })}
         />
-        <InsightPanel chart={chart} selectedPalace={selectedPalace} selectedSiHua={selectedSiHua} />
+        <div className="space-y-5">
+          <InsightPanel chart={chart} selectedPalace={selectedPalace} selectedSiHua={selectedSiHua} />
+          <FusionPanel chart={chart} />
+        </div>
       </div>
 
       <div style={{ marginTop: 20 }}>

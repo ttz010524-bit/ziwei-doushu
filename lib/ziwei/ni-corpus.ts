@@ -21,7 +21,7 @@
  *   ① 原话一字不改（语料库里已按人工裁决改正错字），考据标注随行。
  *   ② 著作权归原权利人，CC BY-NC-SA 4.0，**不许商用**。
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 // ─── 词表 ──────────────────────────────────────────────────
@@ -99,6 +99,12 @@ export const BOOK_LABEL: Record<string, string> = {
   '11-fengshui': '堪舆',
 };
 
+/** 检索页用的册名清单 */
+export const BOOK_LIST = Object.entries(BOOK_LABEL).map(([id, label]) => ({ id, label }));
+
+/** 检索页用的宫位清单（归一后的键，「交友」已含「仆役」） */
+export const PALACE_KEYS = Object.keys(PALACE_FORMS).filter((k) => k !== '身宫');
+
 /** 语料里的「六杀」节包含的六颗煞星 */
 const SHA_SIX = ['擎羊', '陀罗', '火星', '铃星', '地空', '地劫'];
 
@@ -151,9 +157,10 @@ function corpusPath(): string | null {
     path.resolve(process.cwd(), '..', '..', 'docs', 'tianji-ziwei', 'entries.jsonl'),
   ].filter((c): c is string => !!c);
   for (const c of candidates) {
+    // 用 existsSync 探路，不在这里读文件：读留给下面那一次，
+    // 好让打包器知道「只有一处动态读」。
     try {
-      readFileSync(c, 'utf8');
-      return c;
+      if (existsSync(c)) return c;
     } catch { /* 换下一个 */ }
   }
   return null;
@@ -167,7 +174,10 @@ export function loadCorpus(): NiEntry[] {
     cache = [];
     return cache;
   }
-  const raw = readFileSync(file, 'utf8');
+  // 路径是运行时算出来的（环境变量 / monorepo 上移），打包器没法静态追踪，
+  // 所以显式关掉自动追踪：不然它会把整个项目（含 public）都拖进服务端产物。
+  // 语料文件本身由 next.config.js 的 outputFileTracingIncludes 单独带进去。
+  const raw = readFileSync(/*turbopackIgnore: true*/ file, 'utf8');
   const out: NiEntry[] = [];
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
@@ -201,6 +211,28 @@ export function urlOf(e: NiEntry): string {
 export function citationOf(e: NiEntry): string {
   const where = e.h3 ? `${e.h2} · ${e.h3}` : e.h2;
   return `${where}　${e.t_hms}　第${e.part}讲`;
+}
+
+/**
+ * 把语料里的 note 整理成人读的一句考据。
+ *
+ * 语料里的 note 有三种形态：
+ *   'cleaned'                            —— 只标了「这句按裁决改过错字」，没有具体哪一处
+ *   'cleaned〕〔已按裁决改正：左有→左右'    —— 标记 + 勘误（标记没清干净）
+ *   '已按裁决改正：命官→命宫'            —— 干净的勘误
+ *
+ * 原样显示会出现「考据：cleaned」这种没有信息量的字样，
+ * 所以统一成一句话：只有标记时给「已按裁决改正字幕错字」，有勘误时给勘误本身。
+ */
+export function noteOf(raw: string | undefined): string {
+  const s = (raw ?? '').trim();
+  if (!s) return '';
+  const m = s.match(/〔(.+?)〕/);
+  const detail = m
+    ? m[1].trim()
+    : s.replace(/^cleaned〕?〔?/, '').replace(/〕$/, '').trim();
+  if (detail && detail !== 'cleaned') return detail;
+  return '已按裁决改正字幕错字';
 }
 
 // ─── 检索 ──────────────────────────────────────────────────
@@ -345,7 +377,7 @@ export function searchNi(query: NiQuery): NiHit[] {
 
     hits.push({
       quote: e.quote,
-      note: e.note,
+      note: noteOf(e.note),
       book: e.book,
       bookLabel: BOOK_LABEL[e.book] ?? e.book,
       h2: e.h2,
