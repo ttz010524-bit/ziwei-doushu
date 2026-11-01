@@ -287,7 +287,7 @@ npm run dev
 
 ```bash
 npm run typecheck   # TypeScript 全量类型检查
-npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时、立春边界、红鸾天喜、样本时辰一致性、时辰序号边界、日期合法性、同宫双四化）
+npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时、立春边界、大运起始年、红鸾天喜、样本时辰一致性、时辰序号边界、日期合法性、同宫双四化）
 ```
 
 每次 push 与 PR 都会在 GitHub Actions 上跑同一套（见 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)）。
@@ -312,12 +312,15 @@ npm test            # 排盘引擎回归（768 盘 × 紫微铁律、夏令时�
 | `lib/ziwei/bazi-labels.ts` | 八字侧职业属性标签：同一组三轴，规则对齐 mingli skill 的 bazi harness |
 | `lib/ziwei/fusion.ts` | 合参层：三轴叉乘 + 跨轴交叉约束 + 信号分级（确定性，不生成任何断语） |
 | `lib/ziwei/fusion-text.ts` | 合参事实文本：八字排盘 + 总纲 + 交叉验证矩阵 + 依据 + 落点候选 + 冲突 |
+| `lib/ziwei/fusion-data.ts` | 合参的纯计算部分（浏览器可跑）：三轴标签、叉乘结果、四柱与当前大运 |
 | `lib/ziwei/fusion-knowledge.ts` | 合参的方法论提示词（矛盾怎么讲、行业五行怎么讲） |
+| `lib/ziwei/ni-corpus.ts` | 倪师原话检索层：1848 条语料按星曜 / 宫位 / 四化 / 关键词检索，出处与 B 站那一秒随行（服务端） |
 | `lib/ziwei/model.ts` | 模型层：Anthropic 协议客户端、系统规则「不许做什么」、命盘摘要 |
 | `lib/ziwei/sse.ts` | 三条路由共用的 SSE 帧格式 |
 | `app/api/interpret/route.ts` | 解读 SSE 路由 |
 | `app/api/heming/route.ts` | 合盘 SSE 路由 |
 | `app/api/fusion/route.ts` | 八字 × 紫微合参 SSE 路由 |
+| `app/api/niyu/route.ts` | 倪师原话检索接口：GET 按条件查、POST 按命盘取 |
 | `app/api/ai-status/route.ts` | 告诉客户端当前是模型模式还是本地查表（用于如实标注） |
 
 三条路由的帧格式统一为 `data: {"delta":{"text":"…"}}\n\n`，末帧 `data: [DONE]\n\n`；
@@ -395,6 +398,10 @@ ANTHROPIC_MODEL=claude-opus-4-7
 （出处见 [`docs/tianji-ziwei/`](./docs/tianji-ziwei/)，**仅限非商用**），
 八字侧的规则出处标到 mingli skill 的 bazi harness 章节。
 
+**合参面板**（`components/FusionPanel.tsx`）把这套结论直接摆在命盘页上：三轴交叉、落点候选、
+冲突与待复核**全部在浏览器里本地算**，不配模型也有；倪师原话按本盘实际坐的星曜现取
+（出处与考据标注随行）；「展开模型解读」才请模型把它讲成人话。
+
 ---
 
 ## 四、排盘引擎
@@ -454,6 +461,8 @@ ANTHROPIC_MODEL=claude-opus-4-7
 倪海厦《天纪》紫微斗数部分的原话共 **1848 条**：正课 14 讲（第 2–15 讲上半）加 2 段补充，按讲分成 16 个文件，放在 [`docs/tianji-ziwei/`](./docs/tianji-ziwei/)。每条都带出处时间，点一下就跳回 B 站原视频的那一秒。
 
 - **怎么读**：先在上图里找到想看的主题，再点进对应那一讲，比如 [5上](./docs/tianji-ziwei/5%E4%B8%8A.md)（紫微在子）、[13上](./docs/tianji-ziwei/13%E4%B8%8A.md)（杀破狼、科权禄三会）。
+- **怎么搜**：开 `/niyu` 页面，按星曜 / 宫位 / 四化 / 分册 / 关键词查这 1848 条；每条都带节名、时间码与「第几讲」，点「听原话 ↗」直接跳到 B 站原视频的那一秒。也可以直接调 `/api/niyu`（GET 按条件查、POST 传一张命盘按盘面取）。
+- **不只是给人看的**：解读与合参的事实层也接了这份语料 —— 解读按提问的维度取，合参照本盘**实际坐着的星曜**取（官禄 / 财帛 / 命宫三处，空宫按倪师体系借对宫）。原话与它的出处、考据标注一起给出；脱离了出处的引述是二手话，不是原话。
 - **从哪来**：取自姊妹仓库 [nihai-tianji-corpus](https://github.com/Renhuai123/nihai-tianji-corpus)，以语料库为准，会随语料库同步。
 - **能不能商用**：**不能**。这一章的内容单独采用 CC BY-NC-SA 4.0，详见[九、协议](#九协议)。
 
@@ -465,13 +474,21 @@ ANTHROPIC_MODEL=claude-opus-4-7
 
 | 页面 / 组件 | 本仓库（Demo） | 线上商业版 |
 |------|------|------|
-| 排盘页 `app/chart/page.tsx` | 75 行 | 1227 行 |
+| 排盘页 `app/chart/page.tsx` | 74 行 | 1227 行 |
 | 解读面板 `InsightPanel` | 467 行 | 5088 行 |
 | 命盘方格 `ChartBoard` | 285 行 | 1334 行 |
 | 宫位格 `PalaceCell` | 201 行 | 1192 行 |
 | 合盘页 `app/heming/page.tsx` | 368 行 | 1937 行 |
 
 **Demo 能跑通的**：出生信息表单、命盘方格与宫位详情、本命 / 大限 / 流年切换、古籍阅读器（全文搜索）、命理百科（14 主星 × 12 宫位）、亮暗主题、移动端适配。
+
+**这个 fork 另外补了三处界面**（开源侧新增，线上商业版的对应实现不在仓库里）：
+
+| 新增 | 文件 | 说明 |
+|------|------|------|
+| 八字 × 紫微合参面板 | `components/FusionPanel.tsx` | 挂在命盘页右侧：三轴交叉、落点候选、冲突与待复核**全部本地算**，不配模型也有；「展开模型解读」才走 `/api/fusion` |
+| 倪师原话检索页 | `app/niyu/page.tsx` + `components/NiYuSearch.tsx` | 按星曜 / 宫位 / 四化 / 分册 / 关键词查 1848 条原话，每条带考据标注、时间码与 B 站那一秒 |
+| 原话检索接口 | `app/api/niyu/route.ts` | GET 按条件查；POST 传一张命盘，按盘面实际坐的星曜取（合参面板用的就是它） |
 
 **Demo 里没有的**：线上重做过的交互界面、AI 流式解读、合盘图谱、分享卡片，以及**断语内容本身**（`db-analysis.ts` 是占位实现）。也就是说，Demo 画得出盘，但给不出线上那套解读。
 

@@ -70,11 +70,13 @@ npm run typecheck    # TypeScript check
 npm test             # charting regression tests
 ```
 
-**No API key is needed for charting.** The open-source version contains **no backend routes**: AI interpretation (`/api/interpret`) and compatibility analysis (`/api/heming`) return 404 until you implement them yourself.
+**No API key is needed for charting.** This fork ships three backend routes — interpretation (`/api/interpret`), compatibility analysis (`/api/heming`) and BaZi × Zi Wei fusion (`/api/fusion`) — plus a quote-search endpoint (`/api/niyu`). Without a model configured they run as **local lookups**: nothing leaves the machine. Configure an Anthropic-protocol endpoint and a model writes the same computed facts up as prose; then the birth details are sent to the model service you configured.
+
+Pages: `/chart` (charting, with the fusion panel on the right), `/niyu` (search Ni Haixia's 1,848 verbatim quotes), `/library` (classics reader), `/heming` (compatibility analysis).
 
 ## What is not included
 
-The interpretation database (`lib/ziwei/db-analysis.ts` is a placeholder), AI prompts, all `/api/*` backend routes, user accounts, payments, and deployment configuration.
+The interpretation database (`lib/ziwei/db-analysis.ts` is a placeholder), the commercial site's UI, AI prompts of the online product, user accounts, payments, and deployment configuration.
 
 ## Interpretation dataset v4.0 (674,976 charts × 13 topics, 2026-10-15)
 
@@ -102,6 +104,25 @@ Download from [Releases](https://github.com/Renhuai123/ziwei-doushu/releases/tag
 ## Ni Haixia's original words (*Tian Ji*, Zi Wei part)
 
 [`docs/tianji-ziwei/`](./docs/tianji-ziwei/) holds **1,848 quotes** from the Zi Wei lectures of *Tian Ji* (14 lectures plus 2 supplements), each linked to the second it was said in the video. Taken from the sister repo [nihai-tianji-corpus](https://github.com/Renhuai123/nihai-tianji-corpus).
+
+This fork makes the corpus **searchable and usable by the engine**:
+
+- `/niyu` — search the 1,848 quotes by star, palace, four transformations, chapter or keyword; every hit carries its editorial note, timestamp, lecture number and a link to that second of the original video. `/api/niyu` serves it (GET by condition, POST with a chart).
+- The interpretation and fusion fact layers pull quotes **for the chart in hand** — by the stars actually seated in the Career / Wealth / Life palaces (empty palaces borrow the opposite one, Ni's rule) — and always keep the citation and the editorial note attached. A quote without its source is a paraphrase, not the original words.
+- Quotes are non-commercial: CC BY-NC-SA 4.0, see the table below.
+
+## BaZi × Zi Wei fusion
+
+`/api/fusion` answers a different question from the natal reading: **what kind of organisation, what role, and what field of work suits this chart.** The two systems emphasise different things, and that is the point:
+
+| | Zi Wei (Ni's *Tian Ji*, natal chart only) | BaZi (Four Pillars by solar terms) |
+|---|---|---|
+| Strong at | Form of organisation (public / private / freelance / military-police), position (command / advisory / specialist / business owner) | Field element from the useful god, functional route from the ten-god combinations |
+| Weak at | No luck-cycle charts | Cannot say "what kind of organisation" |
+
+The fusion is **not a vote**: both sides are folded onto the same three axes, the surviving values are multiplied (Cartesian product), and cross-axis constraints (a military-police reading cannot land in a freelance job) shrink the solution space. When the two sides conflict on one axis, both branches are kept and the cross-axis constraints do the elimination — dropping the axis would empty the candidate set, picking one arbitrarily would be voting.
+
+The panel on `/chart` shows the three axes, the candidate landing spots and the conflicts **computed locally** — no model required; "expand the model's reading" is the only part that calls `/api/fusion`.
 
 ## License
 
