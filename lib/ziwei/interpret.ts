@@ -22,6 +22,7 @@ import type { ZiweiChart, Palace, SiHua } from './types';
 import { TOPIC_LABEL, TOPIC_PALACE_NAME } from './db-analysis';
 import { STEMS } from './constants';
 import { getDaXianSiHua, getLiuNianSiHua, getSiHuaByStem } from './sihua';
+import { buildFusionBrief } from './fusion-text';
 
 export const TOPIC_KEYS: TopicKey[] = [
   'overview', 'personality', 'love', 'career', 'wealth', 'health',
@@ -241,7 +242,7 @@ export interface PromptContext {
 const KEYWORD_TOPIC: [RegExp, TopicKey][] = [
   [/财库|不动产|房产|买房|置业|田宅/, 'home'],
   [/财运|财富|财源|收入|理财|赚钱|破财|财务|薪资|工资/, 'wealth'],
-  [/事业|工作|职业|创业|升职|职场|官禄|升迁/, 'career'],
+  [/事业|工作|职业|创业|升职|职场|官禄|升迁|行业|择业|体制内|考公/, 'career'],
   [/感情|婚姻|恋爱|桃花|配偶|对象|结婚|夫妻|情感/, 'love'],
   [/性格|性情|脾气|个性|心理|处事/, 'personality'],
   [/健康|身体|疾病|养生|寿元/, 'health'],
@@ -480,6 +481,23 @@ function natalSiHuaText(chart: ZiweiChart, topic: TopicKey): string {
   return lines.join('\n');
 }
 
+/**
+ * 八字 × 紫微合参简报：解读流程原本只有紫微一侧，合参是交叉之后才有的增量。
+ *
+ * 只在事业类提问里带——解读回答的是「这个盘怎么样」，
+ * 合参回答的是「该做什么行业、在什么性质的单位里做什么性质的事」，
+ * 放到别的主题里就是噪声。
+ *
+ * 合参层任何一步出问题都不能连累解读，所以整段包 try/catch，失败就当没有。
+ */
+function fusionBriefText(chart: ZiweiChart, year: number): string {
+  try {
+    return buildFusionBrief(chart, year).trim();
+  } catch {
+    return '';
+  }
+}
+
 /** 核对提问里那颗四化在指定运限层是否成立 */
 function siHuaCheckText(ctx: AnswerContext | undefined, pc: PromptContext): string {
   if (!ctx?.chart || !pc.star || !pc.siHua) return '';
@@ -551,6 +569,9 @@ function freeAnswer(topic: TopicKey, reading: Reading, ctx: AnswerContext): stri
   if (ctx.chart) {
     push('当前大限与流年', luckText(ctx.chart, topic, ctx.year ?? new Date().getFullYear(), ctx.luck));
     push('本命四化', natalSiHuaText(ctx.chart, topic));
+    if (topic === 'career') {
+      push('八字×紫微合参', fusionBriefText(ctx.chart, ctx.year ?? new Date().getFullYear()));
+    }
   }
 
   push(`${short}·核心解读`, blocks.get('核心论断'));
@@ -589,6 +610,12 @@ export function buildAnswer(prompt: string, reading: Reading, ctx?: AnswerContex
     const body = pick(reading, topic, titles, ectx, pc);
     if (!body.trim()) continue;
     out.push(`**【${name}】**\n\n${body.trim()}`);
+  }
+
+  // 事业类提问带上八字×紫微合参：解读层原本只有紫微，八字那一侧是交叉之后才有的增量
+  if (ectx.chart && pc.topic === 'career') {
+    const brief = fusionBriefText(ectx.chart, year);
+    if (brief) out.push(`**【八字×紫微合参】**\n\n${brief}`);
   }
 
   if (!out.length) {
