@@ -41,6 +41,8 @@ This repo is an open snapshot of the engine behind [metisziwei.com](https://meti
 - **Engine sync** ([PR #39](https://github.com/Renhuai123/ziwei-doushu/pull/39)): `chinaDSTSpan(year)` in `dst-cn.ts`; longitudes for province-administered county-level cities in `cities.ts`.
 - **License**: `DATASET-LICENSE` now covers v4.0; quotations from *Tian Ji* inside the readings are not covered by the dataset license.
 
+> **2026-11-02 addendum (this fork)**: the UI is **split into two pages** — `/chart` shows the chart alone, `/reading` holds the 13 topic readings and the BaZi × Zi Wei fusion; the readings used to be squeezed into a 420 px column beside the chart. The two pages hand the birth details plus the selected palace / four-transformation over through `sessionStorage` (`lib/ziwei/chart-session.ts`). The fusion wording was corrected at the same time: the **field-element axis comes from BaZi alone** (useful god / joy god), the Zi Wei side no longer contributes it — a star's element describes the star's nature, and "Tan Lang is water, so a water-industry career suits you" is not a rule in Ni's system, so it has no ground to be crossed against the useful-god element.
+
 > **2026-10-27 addendum**: engine sync. `true-solar-time.ts` accepts `utcOffsetMinutes` (the birthplace's standard UTC offset) for births outside China; results inside China are unchanged. New `clock-adjust.ts` converts a clock reading taken under daylight saving time (or an older time zone) to standard time; it never crosses midnight and is meant to run only when the user confirms. Correction: the engine detects China DST but has never subtracted it automatically; the table below said otherwise.
 
 ## What the engine handles
@@ -72,7 +74,9 @@ npm test             # charting regression tests
 
 **No API key is needed for charting.** This fork ships three backend routes — interpretation (`/api/interpret`), compatibility analysis (`/api/heming`) and BaZi × Zi Wei fusion (`/api/fusion`) — plus a quote-search endpoint (`/api/niyu`). Without a model configured they run as **local lookups**: nothing leaves the machine. Configure an Anthropic-protocol endpoint and a model writes the same computed facts up as prose; then the birth details are sent to the model service you configured.
 
-Pages: `/chart` (charting, with the fusion panel on the right), `/niyu` (search Ni Haixia's 1,848 verbatim quotes), `/library` (classics reader), `/heming` (compatibility analysis).
+Pages: `/chart` (charting only), `/reading` (interpretation + BaZi × Zi Wei fusion), `/niyu` (search Ni Haixia's 1,848 verbatim quotes), `/library` (classics reader), `/heming` (compatibility analysis).
+
+The UI is split in two on purpose: the interpretation used to sit in a 420 px column beside the chart, which squeezed the long readings into a wall of text and left the chart with the whole screen. `/chart` now shows the chart alone, `/reading` gives the readings and the fusion panel full width. The two pages hand the birth details plus the selected palace / four-transformation over through `sessionStorage` (`lib/ziwei/chart-session.ts`) — a chart is fully determined by the birth details, so only the input is stored and the same chart is re-derived on either side.
 
 ## What is not included
 
@@ -118,11 +122,13 @@ This fork makes the corpus **searchable and usable by the engine**:
 | | Zi Wei (Ni's *Tian Ji*, natal chart only) | BaZi (Four Pillars by solar terms) |
 |---|---|---|
 | Strong at | Form of organisation (public / private / freelance / military-police), position (command / advisory / specialist / business owner) | Field element from the useful god, functional route from the ten-god combinations |
-| Weak at | No luck-cycle charts | Cannot say "what kind of organisation" |
+| Weak at | No luck-cycle charts; **no field element either** | Cannot say "what kind of organisation" |
 
 The fusion is **not a vote**: both sides are folded onto the same three axes, the surviving values are multiplied (Cartesian product), and cross-axis constraints (a military-police reading cannot land in a freelance job) shrink the solution space. When the two sides conflict on one axis, both branches are kept and the cross-axis constraints do the elimination — dropping the axis would empty the candidate set, picking one arbitrarily would be voting.
 
-The panel on `/chart` shows the three axes, the candidate landing spots and the conflicts **computed locally** — no model required; "expand the model's reading" is the only part that calls `/api/fusion`.
+**The field-element axis comes from BaZi alone.** The five elements of the stars (Zi Wei belongs to earth, Tan Lang to wood and water, …) describe the *nature* of a star, not an industry label — "Tan Lang is water, so a water-industry career suits you" is not a rule that exists in Ni's system. So that axis is not crossed with the Zi Wei side: the panel marks it as decided by BaZi and shows "not applicable" for Zi Wei. The Zi Wei side answers only the "which kind of organisation, which kind of role" layer.
+
+The panel on `/reading` shows the three axes, the candidate landing spots and the conflicts **computed locally** — no model required; "expand the model's reading" is the only part that calls `/api/fusion`.
 
 ## License
 

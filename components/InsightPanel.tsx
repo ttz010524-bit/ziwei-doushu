@@ -294,6 +294,15 @@ export default function InsightPanel({ chart, selectedPalace, selectedSiHua }: I
   const lastPalaceBranch = useRef<number | undefined>(undefined);
   const lastSiHuaKey = useRef<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /**
+   * 排队中的提问。
+   * 早前 busy 时直接 return，那条提问就**丢了**——
+   * 命格总览还在流式输出时点一个宫位，那个宫位的解读根本不会出现，
+   * 用户只看到自己的点击没有反应。
+   * 解读页还会带着「命盘上选中的宫位／四化」自动进来，
+   * 那时总览一定正在输出，所以这里改成排队：当前这条结束就接着发。
+   */
+  const queueRef = useRef<{ text: string; hidden: boolean; luck?: LuckCtx }[]>([]);
   // 服务端当前是模型解读还是本地查表 —— 文案不能写死
   const aiStatus = useAiMode();
 
@@ -433,11 +442,19 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
     } finally {
       setLoading(false);
       loadingRef.current = false;
+      // 排队里的下一条接着发
+      const next = queueRef.current.shift();
+      if (next) sendMessage(next.text, next.hidden, next.luck);
     }
   };
 
   const sendMessage = (text: string, hidden = false, luck?: LuckCtx) => {
-    if (!text.trim() || loadingRef.current) return;
+    if (!text.trim()) return;
+    // 正在输出 → 排队，别丢（见 queueRef 的说明）
+    if (loadingRef.current) {
+      queueRef.current.push({ text, hidden, luck });
+      return;
+    }
     loadingRef.current = true;
     setLoading(true);
 
@@ -454,8 +471,8 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
   };
 
   const handleTopicClick = (topicKey: string) => {
-    if (loadingRef.current) return;
     setActiveTopic(topicKey);
+    // 正在输出时 sendMessage 会排队，不会丢
     sendMessage(TOPIC_PROMPTS[topicKey], true);
   };
 
@@ -464,7 +481,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
   };
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden card-glass lg:h-[calc(100vh-120px)]">
+    <div className="flex flex-col rounded-xl overflow-hidden card-glass lg:h-[calc(100vh-152px)]">
 
       {/* ── Topic buttons ── */}
       <div className="flex-shrink-0 px-2 pt-2.5 pb-2" style={{ borderBottom: '1px solid var(--t-border)' }}>
