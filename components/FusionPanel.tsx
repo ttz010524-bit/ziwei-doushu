@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ZiweiChart } from '@/lib/ziwei/types';
 import { buildFusionData, currentDaYun } from '@/lib/ziwei/fusion-data';
-import { AXIS_NAME, type Axis, type Verdict } from '@/lib/ziwei/fusion';
+import { AXIS_NAME, AXIS_SOURCE, type Axis, type Verdict } from '@/lib/ziwei/fusion';
 import { WU_XING_CAREER } from '@/lib/ziwei/bazi-labels';
 import AiContent from './AiContent';
 
@@ -25,6 +25,10 @@ interface NiHit {
  *
  * 面板把合参的**确定性结果**直接摆在界面上，不经模型：
  *   八字四柱 / 旺衰 / 用神 → 三个轴上两侧各自的判断 → 叉乘后的落点候选 → 冲突。
+ *
+ * 三个轴里，**「行业五行」只由八字一侧给出**（用神／喜神五行）；
+ * 紫微的星曜五行论的是星性，不是行业标签，所以那一格如实写「不参与」，
+ * 不拿它去和用神五行凑一个对照。
  *
  * 为什么不让模型去算：三轴的叉乘与跨轴约束是集合运算，结果必须可复核；
  * 模型只负责把已经算好的结论讲成人话（「展开模型解读」按钮走 /api/fusion）。
@@ -178,11 +182,19 @@ export default function FusionPanel({ chart }: FusionPanelProps) {
           const st = VERDICT_STYLE[f.verdict];
           const ziweiSide = f.values.find((v) => v.sources.some((s) => s.side === '紫微'));
           const baziSide = f.values.find((v) => v.sources.some((s) => s.side === '八字'));
+          // 行业五行这一轴只有八字给得出，紫微的星曜五行是星性、不是行业标签，
+          // 所以这一格如实写「不参与」，而不是拿星曜五行去凑一个对照。
+          const baziOnly = AXIS_SOURCE[axis] === '八字';
           return (
             <div key={axis} className="rounded-lg px-3 py-2.5 card-inner">
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-[12.5px] font-medium" style={{ color: 'var(--t-text1)' }}>
                   {AXIS_NAME[axis]}
+                  {baziOnly && (
+                    <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--t-faint)' }}>
+                      （八字定）
+                    </span>
+                  )}
                 </span>
                 <span
                   className="text-[10.5px] px-1.5 py-0.5 rounded"
@@ -194,8 +206,8 @@ export default function FusionPanel({ chart }: FusionPanelProps) {
               <div className="grid grid-cols-2 gap-2 text-[11.5px] leading-[1.6]">
                 <div>
                   <div style={{ color: 'var(--t-faint)' }}>紫微</div>
-                  <div style={{ color: 'var(--t-text1)' }}>
-                    {ziweiSide?.value ?? '—'}
+                  <div style={{ color: baziOnly ? 'var(--t-faint)' : 'var(--t-text1)' }}>
+                    {ziweiSide?.value ?? (baziOnly ? '不参与' : '—')}
                   </div>
                 </div>
                 <div>
@@ -205,6 +217,11 @@ export default function FusionPanel({ chart }: FusionPanelProps) {
                   </div>
                 </div>
               </div>
+              {baziOnly && (
+                <p className="mt-1.5 text-[10.5px] leading-relaxed" style={{ color: 'var(--t-faint)' }}>
+                  行业五行只取八字的用神／喜神；紫微的星曜五行论的是星性，不用来定行业。
+                </p>
+              )}
               {f.intraSideConflict && (
                 <p className="mt-1.5 text-[10.5px]" style={{ color: 'var(--ji)' }}>
                   ⚠ {f.intraSideConflict}

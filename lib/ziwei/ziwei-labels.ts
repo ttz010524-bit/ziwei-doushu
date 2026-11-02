@@ -12,12 +12,19 @@
  * 每条标签都带倪师原话与出处（《天纪·紫微斗数》讲次 + 时间码）。
  * 原话著作权归原权利人，此处为引用与转述，非商用授权。
  *
- * 口径提醒：本文件只看**本命盘**（生年四化 + 宫位星曜）。
+ * 口径提醒一：本文件只看**本命盘**（生年四化 + 宫位星曜）。
  * 大限宫干四化与流年年干四化属于运限层，由 interpret.ts 的 luckText 单独处理，
  * 不要混进本命的职业定性里。
+ *
+ * 口径提醒二：**紫微侧不出「领域五行」标签**。
+ * 星曜的五行（紫微属土、贪狼属木水……）在倪师体系里是**星曜本身的属性**，
+ * 用来论星性轻重，不是用来给职业贴行业标签的——
+ * 「贪狼属水，所以适合水行业」这种推法在倪师体系里并不存在，
+ * 拿它去跟八字的用神五行对打是硬凑的。
+ * 所以领域五行这一轴**只由八字一侧给出**（用神／喜神五行），
+ * 紫微侧只负责「在什么单位里、做什么事」这一层。
  */
 import type { ZiweiChart, Palace, SiHua } from './types';
-import { STAR_DESCRIPTIONS } from './constants';
 
 // ─── 标签轴（三套数术共用，才能交叉） ─────────────────────────
 
@@ -27,7 +34,10 @@ export type OrgLabel = '公家单位' | '私人企业' | '自由职业' | '军�
 export type FuncLabel =
   | '统筹掌权' | '参谋顾问' | '专业技术专长' | '行政执行'
   | '经商老板' | '军警执法' | '教育传道' | '文化艺术' | '理财守成';
-/** 领域指向：行业五行属性 */
+/**
+ * 领域指向：行业五行属性。
+ * 只有**八字**会用这一轴（用神／喜神五行）；紫微侧不产出，见文件头「口径提醒二」。
+ */
 export type FieldLabel = '木' | '火' | '土' | '金' | '水';
 
 export type SignalStrength = '强' | '中' | '弱';
@@ -44,8 +54,9 @@ export interface NiQuote {
 }
 
 export interface ZiweiLabel {
-  axis: 'org' | 'func' | 'field';
-  value: OrgLabel | FuncLabel | FieldLabel;
+  /** 紫微侧只出这两轴；领域五行（field）只由八字给出 */
+  axis: 'org' | 'func';
+  value: OrgLabel | FuncLabel;
   strength: SignalStrength;
   /** 判定依据（人话） */
   basis: string;
@@ -79,12 +90,6 @@ export const CAI_XING = ['武曲', '禄存'];
 
 /** 科甲星（天魁天钺） */
 export const KE_JIA_XING = ['天魁', '天钺'];
-
-/** 14 主星的五行（领域指向用；出自 STAR_DESCRIPTIONS） */
-export function starElement(name: string): FieldLabel | null {
-  const e = STAR_DESCRIPTIONS[name]?.element;
-  return e === '木' || e === '火' || e === '土' || e === '金' || e === '水' ? e : null;
-}
 
 // ─── 取盘要素 ────────────────────────────────────────────────
 
@@ -185,7 +190,9 @@ export function deriveZiweiLabels(chart: ZiweiChart): ZiweiLabel[] {
       },
     });
     add({
-      axis: 'org', value: '教育传道', strength: '弱',
+      // 「教育传道」是**职能位置**（做什么事），不是组织形态（在哪类单位里）——
+      // 早前挂错在 org 轴上，会跟八字的组织形态标签对打，制造假冲突。
+      axis: 'func', value: '教育传道', strength: '弱',
       basis: `${guanWhere}，文官带兼教星之象`,
       quote: {
         text: '官星一定要进入官禄宫最好…叫做适得其所，叫做正位。',
@@ -485,35 +492,15 @@ export function deriveZiweiLabels(chart: ZiweiChart): ZiweiLabel[] {
     });
   }
 
-  // ── 领域五行（行业属性） ────────────────────────────────
-  const fieldSources: { el: FieldLabel; from: string }[] = [];
-  for (const s of guanStars) {
-    const e = starElement(s);
-    if (e) fieldSources.push({ el: e, from: `官禄宫${s}` });
-  }
-  for (const s of caiStars) {
-    const e = starElement(s);
-    if (e) fieldSources.push({ el: e, from: `财帛宫${s}` });
-  }
-  const fieldCount = new Map<FieldLabel, string[]>();
-  for (const f of fieldSources) {
-    const list = fieldCount.get(f.el) ?? [];
-    list.push(f.from);
-    fieldCount.set(f.el, list);
-  }
-  for (const [el, froms] of fieldCount) {
-    add({
-      axis: 'field', value: el,
-      strength: froms.length > 1 ? '中' : '弱',
-      basis: `${froms.join('、')}的星曜五行属${el}`,
-    });
-  }
+  // ── 领域五行 ────────────────────────────────────────────
+  // 紫微侧**不产出**这一轴：星曜五行是星性，不是行业标签（见文件头「口径提醒二」）。
+  // 领域五行由八字一侧的用神／喜神给出，见 bazi-labels.ts。
 
   return out;
 }
 
 /** 取某一轴上的标签 */
-export function labelsOnAxis(labels: ZiweiLabel[], axis: 'org' | 'func' | 'field'): ZiweiLabel[] {
+export function labelsOnAxis(labels: ZiweiLabel[], axis: 'org' | 'func'): ZiweiLabel[] {
   return labels.filter((l) => l.axis === axis);
 }
 
@@ -526,8 +513,8 @@ export function summarizeLabels(labels: ZiweiLabel[]): string {
     arr.push(l);
     byAxis.set(l.axis, arr);
   }
-  const names: Record<string, string> = { org: '组织形态', func: '职能位置', field: '领域五行' };
-  const order = ['org', 'func', 'field'];
+  const names: Record<string, string> = { org: '组织形态', func: '职能位置' };
+  const order = ['org', 'func'];
   const parts: string[] = [];
   for (const axis of order) {
     const arr = byAxis.get(axis);

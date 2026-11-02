@@ -2,7 +2,7 @@
  * lib/ziwei/fusion —— 八字 × 紫微的合参层（属性叉乘 + 交叉约束）
  *
  * 合参的机制不是「结论投票」，也不是「分工路由」（问事业走紫微、问行业走八字），
- * 而是**正交维度的叉乘**：紫微给「组织形态 / 职能位置 / 领域倾向」，
+ * 而是**正交维度的叉乘**：紫微给「组织形态 / 职能位置」，
  * 八字给「组织形态 / 职能位置 / 行业五行」，两侧落在同一组轴上，
  * 于是可以：
  *   ① 叉乘：把两边的取值做笛卡尔积，得到比单边细得多的落点
@@ -17,6 +17,10 @@
  * 若两侧在「职能位置」上同时指向「军警执法」，那军警执法只能落在公家序列，
  * 于是「自由职业」这一支被约束排除——这才是 skill 说的「解空间被缩小」。
  *
+ * **行业五行这一轴只由八字一侧给出**（用神／喜神五行）。
+ * 紫微的星曜五行（紫微属土、贪狼属木水……）是**星性**，不是行业标签，
+ * 拿它跟用神五行对打没有依据，所以紫微侧不参与这一轴的交叉。
+ *
  * 本层是**确定性**的：只做集合运算与打分，不生成任何自然语言断语。
  * 要讲给人听是表达层的事（模型），它拿到的是这里算好的结论。
  */
@@ -27,7 +31,17 @@ import { WU_XING_CAREER } from './bazi-labels';
 export type Axis = 'org' | 'func' | 'field';
 
 export const AXIS_NAME: Record<Axis, string> = {
-  org: '组织形态', func: '职能位置', field: '领域五行',
+  org: '组织形态', func: '职能位置', field: '行业五行',
+};
+
+/**
+ * 每一轴由谁给出。
+ * 「组织形态」「职能位置」两轴两侧都能给，所以能交叉、能出矛盾；
+ * 「行业五行」只有八字能给，紫微不参与——这一轴不是「紫微缺了一条」，
+ * 而是本来就该由八字说了算。
+ */
+export const AXIS_SOURCE: Record<Axis, '两侧' | '八字'> = {
+  org: '两侧', func: '两侧', field: '八字',
 };
 
 /** 权重：强 3 / 中 2 / 弱 1 */
@@ -345,55 +359,28 @@ export function fuse(ziwei: ZiweiLabel[], bazi: BaziLabel[]): FusionResult {
       } else {
         // 不互斥 → 兼容，可以并存（例如公家单位 × 军警武职）
         // 组织形态与职能位置是**角色**，天然可复合（「公家单位里的军警武职」、
-        // 「掌权且传道」），所以合并成一个取值；
-        // 领域五行是**属性**，两个五行合成一个行业没有意义（「土·水行业」），
-        // 所以并列保留两条，按权重排序（用神五行通常压过紫微的星曜五行）。
-        if (axis === 'field') {
-          const values: AxisValue[] = ([
-            {
-              value: gv.value, weight: gv.weight,
-              sources: [{ side: '八字' as const, strength: gv.strength, basis: gv.basis }],
-              parts: [gv.value],
-            },
-            {
-              value: zv.value, weight: zv.weight,
-              sources: [{ side: '紫微' as const, strength: zv.strength, basis: zv.basis }],
-              quote: zv.quote,
-              parts: [zv.value],
-            },
-          ] as AxisValue[]).sort((a, b) => b.weight - a.weight);
-          axes.push({
-            axis, verdict: '兼容', values, intraSideConflict: intra,
-            note: `紫微主「${zv.value}」（${zv.basis}），八字主「${gv.value}」（${gv.basis}），两者不互斥，可并存`,
-          });
-          signals.push({
-            axis, value: `${zv.value} / ${gv.value}`, verdict: '兼容',
-            strength: '中',
-            ziweiBasis: zv.basis, baziBasis: gv.basis, quote: zv.quote,
-            note: `紫微「${zv.value}」与八字「${gv.value}」并存`,
-          });
-        } else {
-          const merged: AxisValue = {
-            value: `${zv.value}·${gv.value}`,
-            weight: zv.weight + gv.weight,
-            sources: [
-              { side: '紫微', strength: zv.strength, basis: zv.basis },
-              { side: '八字', strength: gv.strength, basis: gv.basis },
-            ],
-            quote: zv.quote,
-            parts: [zv.value, gv.value],
-          };
-          axes.push({
-            axis, verdict: '兼容', values: [merged], intraSideConflict: intra,
-            note: `紫微主「${zv.value}」，八字主「${gv.value}」，两者不互斥，可并存`,
-          });
-          signals.push({
-            axis, value: merged.value, verdict: '兼容',
-            strength: '中',
-            ziweiBasis: zv.basis, baziBasis: gv.basis, quote: zv.quote,
-            note: `紫微「${zv.value}」与八字「${gv.value}」并存`,
-          });
-        }
+        // 「掌权且传道」），所以合并成一个取值。
+        // （行业五行这一轴紫微不参与，走下面的「八字单边」分支。）
+        const merged: AxisValue = {
+          value: `${zv.value}·${gv.value}`,
+          weight: zv.weight + gv.weight,
+          sources: [
+            { side: '紫微', strength: zv.strength, basis: zv.basis },
+            { side: '八字', strength: gv.strength, basis: gv.basis },
+          ],
+          quote: zv.quote,
+          parts: [zv.value, gv.value],
+        };
+        axes.push({
+          axis, verdict: '兼容', values: [merged], intraSideConflict: intra,
+          note: `紫微主「${zv.value}」，八字主「${gv.value}」，两者不互斥，可并存`,
+        });
+        signals.push({
+          axis, value: merged.value, verdict: '兼容',
+          strength: '中',
+          ziweiBasis: zv.basis, baziBasis: gv.basis, quote: zv.quote,
+          note: `紫微「${zv.value}」与八字「${gv.value}」并存`,
+        });
       }
     } else if (zv) {
       // 单边：紫微一侧。保留前两个取值，让叉乘仍有可选空间
@@ -419,12 +406,17 @@ export function fuse(ziwei: ZiweiLabel[], bazi: BaziLabel[]): FusionResult {
       }));
       axes.push({
         axis, verdict: '单边', values, intraSideConflict: intra,
-        note: `只有八字一侧给出「${gv.value}」（${gv.basis}）`,
+        note: axis === 'field'
+          ? `行业五行只由八字给出「${gv.value}」（${gv.basis}）——`
+            + '紫微的星曜五行是星性、不是行业标签，这一轴不与紫微交叉'
+          : `只有八字一侧给出「${gv.value}」（${gv.basis}）`,
       });
       signals.push({
         axis, value: gv.value, verdict: '单边', strength: gv.weight >= 3 ? '强' : '中',
         baziBasis: gv.basis,
-        note: `仅八字一侧：${gv.value}`,
+        note: axis === 'field'
+          ? `行业五行由八字定：${gv.value}`
+          : `仅八字一侧：${gv.value}`,
       });
     } else {
       axes.push({ axis, verdict: '单边', values: [], note: '两侧都没有给出这一轴的信号' });
